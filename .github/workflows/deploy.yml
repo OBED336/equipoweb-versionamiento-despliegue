@@ -1,0 +1,64 @@
+﻿name: CI-CD EquipoWeb
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    name: Validar sitio
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Comprobar pagina inicial
+        shell: bash
+        run: |
+          test -s index.html
+          grep -qi '<html' index.html
+          grep -qi '</html>' index.html
+          grep -qi '<title>.*</title>' index.html
+          echo "Comprobaciones basicas superadas."
+
+  desplegar:
+    name: Publicar en GitHub Pages
+    needs: validar
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Preparar archivos publicos
+        run: |
+          mkdir -p _site
+          cp index.html _site/index.html
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Subir archivos del sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Desplegar
+        id: deployment
+        uses: actions/deploy-pages@v4
